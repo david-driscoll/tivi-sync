@@ -31,9 +31,6 @@ jobs:
         id: meta
         uses: docker/metadata-action@v5
         with:
-          # list of Docker images to use as base name for tags
-          images: |
-            david-driscoll/tivi-sync
           # generate Docker tags based on the following events/attributes
           sep-tags: ';'
           tags: |
