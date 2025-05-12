@@ -1,14 +1,8 @@
 workflow: GitHubFlow/v1
 semantic-version-format: Loose
 next-version: 1.0.0
-increment: Minor
+increment: Patch
 label: ''
-strategies:
-  - Fallback
-  - ConfiguredNextVersion
-  - TaggedCommit
-  - TrackReleaseBranches
-  - Mainline
 
 branches:
   main:
