@@ -53,4 +53,4 @@ jobs:
         run: |
           dotnet publish --os linux --arch x64 -c Release /t:PublishContainer -p ContainerRegistry=ghcr.io
         env:
-          ContainerImageTags: "latest;main;${{ steps.gitversion.outputs.majorMinorPatch }}"
+          ContainerImageTags: "latest;${{ steps.gitversion.outputs.major }}.${{ steps.gitversion.outputs.minor }}.${{ steps.gitversion.outputs.preReleaseTag }}"
