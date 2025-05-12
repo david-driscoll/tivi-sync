@@ -20,7 +20,7 @@
     <PackageReference Include="Rocket.Surgery.LaunchPad.Hosting" Version="2.0.1-beta.50" />
     <PackageReference Include="Spectre.Console" Version="0.50.0" />
     <PackageReference Include="System.Interactive" Version="6.0.1" />
-    <PackageReference Include="System.Interactive.Async" Version="6.0.1" /> 
+    <PackageReference Include="System.Interactive.Async" Version="6.0.1" />
     <PackageReference Include="System.Reactive" Version="6.0.1" />
     <PackageReference Include="System.Reactive.Observable.Aliases" Version="6.0.1" />
     <PackageReference Include="XmlTvSharp" Version="1.1.2" />
