@@ -7,7 +7,6 @@
     <Nullable>enable</Nullable>
     <RootNamespace>Tivi</RootNamespace>
     <ContainerRepository>david-driscoll/tivi-sync</ContainerRepository>
-    <ContainerImageTags>latest</ContainerImageTags>
     <LangVersion>preview</LangVersion>
   </PropertyGroup>
 
