@@ -44,5 +44,5 @@ jobs:
       - name: Publish and push the container image
         run: |
           dotnet publish --os linux --arch x64 -c Release /t:PublishContainer -p ContainerRegistry=ghcr.io
-        ENV:
+        env:
           ContainerImageTags: ${{ steps.meta.outputs.tags }}
