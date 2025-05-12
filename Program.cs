@@ -7,8 +7,6 @@ using Spectre.Console;
 using Tivi;
 
 var builder = Host.CreateApplicationBuilder();
-builder.Services.AddHostedService<TiviBackgroundService>();
-builder.Services.AddHealthChecks().AddTypeActivatedCheck<ContentHealthCheck>("tivi");
 var app = await builder.ConfigureRocketSurgery();
 await app.StartAsync();
 var options = app.Services.GetRequiredService<IOptions<TiviOptions>>();
