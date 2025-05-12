@@ -27,6 +27,7 @@ app
     {
         FileProvider = fileProvider,
     })
-    .UseStatusCodePages();
+    .UseStatusCodePages()
+    .UseHealthChecks("/health");
 
 await app.RunAsync();
