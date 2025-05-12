@@ -13,7 +13,7 @@ public static partial class GetM3UPlaylist
   {
     public async Task<M3U> Handle(Request request, CancellationToken cancellationToken)
     {
-      var cacheDirectory = options.Value.GetCacheDirectory();
+      var cacheDirectory = options.Value.CacheDirectory;
       var fileName = $"{options.Value.Hostname}.m3u";
       var filePath = Path.Combine(cacheDirectory, fileName);
       try

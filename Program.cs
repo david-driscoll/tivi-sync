@@ -1,33 +1,27 @@
-﻿using System.Text.Encodings.Web;
+﻿using Humanizer;
 using MediatR;
-using Microsoft.AspNetCore.Builder;
-using Microsoft.AspNetCore.StaticFiles;
-using Microsoft.Extensions.Configuration;
-using Microsoft.Extensions.DependencyInjection;
-using Microsoft.Extensions.FileProviders;
-using Microsoft.Extensions.Hosting;
 using Microsoft.Extensions.Options;
+using Rocket.Surgery.DependencyInjection;
 using Rocket.Surgery.Hosting;
+using Spectre.Console;
 using Tivi;
 
-var builder = WebApplication.CreateSlimBuilder();
+var builder = Host.CreateApplicationBuilder();
 builder.Services.AddHostedService<TiviBackgroundService>();
+builder.Services.AddHealthChecks().AddTypeActivatedCheck<ContentHealthCheck>("tivi");
 var app = await builder.ConfigureRocketSurgery();
-
-var resultsDirectory =
-    app.Services.GetRequiredService<IOptions<TiviOptions>>().Value.GetResultsDirectory().TrimEnd('/');
-var fileProvider = new PhysicalFileProvider(resultsDirectory);
-app
-    .UseStaticFiles(new StaticFileOptions()
+await app.StartAsync();
+var options = app.Services.GetRequiredService<IOptions<TiviOptions>>();
+await app.Services.GetRequiredService<IExecuteScoped<IMediator>>().Invoke((m, ct) => m.Send(new SyncTivi.Request(), ct));
+var moment = DateTimeOffset.Now;
+var table = new Table();
+table.AddColumns("Name", "Size", "Modified");
+new DirectoryInfo(options.Value.ResultsDirectory)
+    .EnumerateFiles()
+    .OrderBy(z => z.Name)
+    .ForEach(z =>
     {
-        FileProvider = fileProvider,
-        ServeUnknownFileTypes = true,
-    })
-    .UseDirectoryBrowser(new DirectoryBrowserOptions()
-    {
-        FileProvider = fileProvider,
-    })
-    .UseStatusCodePages()
-    .UseHealthChecks("/health");
-
-await app.RunAsync();
+        table.AddRow(z.Name, z.Length.Bytes().Humanize(), z.LastWriteTime.Humanize(dateToCompareAgainst: moment.LocalDateTime));
+    });
+                
+AnsiConsole.Write(table);

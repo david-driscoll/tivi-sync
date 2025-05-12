@@ -4,7 +4,7 @@ using MediatR;
 using Microsoft.Extensions.Options;
 using tivi.Models;
 
-public static partial class GetTivi
+public static partial class SyncTivi
 {
   public record Request() : IRequest;
 
@@ -26,7 +26,6 @@ public static partial class GetTivi
       var locals = channelsByCategory[RecordCategory.Local];
       var us = channelsByCategory[RecordCategory.Us];
 
-
       foreach (var local in locals.AsEnumerable().Reverse())
       {
         if (AllowedLocals.Any(v => local.Title.Contains(v, StringComparison.OrdinalIgnoreCase)))
@@ -44,7 +43,7 @@ public static partial class GetTivi
         }
       }
 
-      var resultsDirectory = options.Value.GetResultsDirectory();
+      var resultsDirectory = options.Value.ResultsDirectory;
       if (!Directory.Exists(resultsDirectory))
       {
         Directory.CreateDirectory(resultsDirectory);

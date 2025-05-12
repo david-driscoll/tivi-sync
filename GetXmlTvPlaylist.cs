@@ -13,7 +13,7 @@ public static partial class GetXmlTvPlaylist
   {
     public async Task<Tv> Handle(Request request, CancellationToken cancellationToken)
     {
-      var cacheDirectory = options.Value.GetCacheDirectory();
+      var cacheDirectory = options.Value.CacheDirectory;
       var fileName = $"{options.Value.Hostname}.xml";
       var filePath = Path.Combine(cacheDirectory, fileName);
       try
@@ -32,7 +32,7 @@ public static partial class GetXmlTvPlaylist
         var response = await client.SendAsync(new HttpRequestMessage(HttpMethod.Get, url.Uri), cancellationToken);
         if (!response.IsSuccessStatusCode)
         {
-          logger.LogCritical("Unable to download m3u file {FilePath} ({StatusCode} {Reason})", filePath,
+          logger.LogCritical("Unable to download xmltv file {FilePath} ({StatusCode} {Reason})", filePath,
             response.StatusCode, response.ReasonPhrase);
           throw new RequestFailedException($"Unable to download m3u file {filePath}");
         }
