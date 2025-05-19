@@ -1,3 +1,4 @@
+using System.Collections.Frozen;
 using M3UManager;
 using M3UManager.Models;
 using MediatR;
@@ -24,7 +25,7 @@ public static partial class SyncTivi
         .GroupBy(MatchCategory)
         .ToDictionary(z => z.Key, z => z.ToList());
       var locals = channelsByCategory[RecordCategory.Local];
-      var us = channelsByCategory[RecordCategory.Us];
+      var us = channelsByCategory[RecordCategory.UnitedStates];
 
       foreach (var local in locals.AsEnumerable().Reverse())
       {
@@ -114,7 +115,7 @@ public static partial class SyncTivi
         return g;
       }
 
-      if (g is not (RecordCategory.Canzau or RecordCategory.Us or RecordCategory.Uk))
+      if (g is not (RecordCategory.Canada or RecordCategory.UnitedStates or RecordCategory.UnitedKingdom or RecordCategory.NewZealand or RecordCategory.Australia))
       {
         return g;
       }
@@ -143,7 +144,7 @@ public static partial class SyncTivi
         (_, [_, [.., 'P', 'P', 'V'] or [.., '(', 'P', 'P', 'V', ')'] or ['P', 'P', 'V', ..]]) => RecordCategory
           .PayPerView,
         (RecordCategory.Dropped or RecordCategory.Skipped, _) => countryCategory,
-        (_, [_, "NEWS NETWORK"]) => RecordCategory.Us,
+        (_, [_, "NEWS NETWORK"]) => RecordCategory.UnitedStates,
         (_, [_, [.., ' ', 'N', 'E', 'T', 'W', 'O', 'R', 'K']]) => RecordCategory.Local,
         (_, [_, "CW & MY"]) => RecordCategory.Local,
         (_, [_, "KIDS | BABY" or "KIDS"]) => RecordCategory.Kids,
@@ -169,14 +170,14 @@ public static partial class SyncTivi
       {
         ["ES", ..] => RecordCategory.Skipped,
         ["AR", ..] => RecordCategory.Skipped,
-        ["CA EN", ..] => RecordCategory.Canzau,
-        ["IE", "IRELAND 4K"] => RecordCategory.Uk,
+        ["CA EN", ..] => RecordCategory.Canada,
+        ["IE", "IRELAND 4K"] => RecordCategory.UnitedKingdom,
         ["IE", ..] => RecordCategory.Skipped,
-        ["NZ", ..] => RecordCategory.Canzau,
-        ["AU", ..] => RecordCategory.Canzau,
+        ["NZ", ..] => RecordCategory.NewZealand,
+        ["AU", ..] => RecordCategory.Australia,
         ["UK", "BASIC TV+" or "INDIA EU" or "RAKUTEN TV" or "F1 TV PRO" or "BEIN SPORTS"] => RecordCategory.Skipped,
-        ["UK", ..] => RecordCategory.Uk,
-        ["US" or "USA", ..] => RecordCategory.Us,
+        ["UK", ..] => RecordCategory.UnitedKingdom,
+        ["US" or "USA", ..] => RecordCategory.UnitedStates,
         _ => RecordCategory.Dropped,
       };
     }
