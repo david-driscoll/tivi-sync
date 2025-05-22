@@ -16,6 +16,12 @@ public static partial class GetM3UPlaylist
             var cacheDirectory = options.Value.CacheDirectory;
             var fileName = $"{options.Value.Hostname}.m3u";
             var filePath = Path.Combine(cacheDirectory, fileName);
+            if (File.Exists(filePath) &&
+                DateTime.UtcNow.Subtract(TimeSpan.FromHours(1)) < File.GetLastWriteTimeUtc(filePath))
+            {
+                return M3UManager.M3UManager.ParseFromFile(filePath);
+            }
+
             try
             {
                 using var client = new HttpClient();
@@ -57,10 +63,14 @@ public static partial class GetM3UPlaylist
                 await using var fileStream = File.Create(filePath);
                 await stream.CopyToAsync(fileStream, cancellationToken);
             }
-            catch when (!File.Exists(filePath))
+            catch (Exception ex) when (!File.Exists(filePath))
             {
-                logger.LogCritical("Unable to download m3u file {Url}", filePath);
-                throw new RequestFailedException($"Unable to download m3u file {filePath}");
+                logger.LogCritical(ex, "Unable to download m3u file {Url}", filePath);
+                throw new RequestFailedException($"Unable to download m3u file {filePath}", ex);
+            }
+            catch (Exception ex)
+            {
+                logger.LogCritical(ex, "Unable to download m3u file {Url}", filePath);
             }
 
             return M3UManager.M3UManager.ParseFromFile(filePath);

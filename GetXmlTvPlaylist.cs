@@ -55,9 +55,14 @@ public static partial class GetXmlTvPlaylist
                 await using var fileStream = File.Create(filePath);
                 await stream.CopyToAsync(fileStream, cancellationToken);
             }
-            catch when (!File.Exists(filePath))
+            catch (Exception ex) when (!File.Exists(filePath))
             {
-                throw new RequestFailedException($"Unable to download xmltv file {filePath}");
+                logger.LogCritical(ex, "Unable to download xmltv file {Url}", filePath);
+                throw new RequestFailedException($"Unable to download xmltv file {filePath}", ex);
+            }
+            catch (Exception ex)
+            {
+                logger.LogCritical(ex, "Unable to download xmltv file {Url}", filePath);
             }
 
             return Tv.Load(filePath);
