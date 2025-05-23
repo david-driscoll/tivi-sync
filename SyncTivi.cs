@@ -28,7 +28,6 @@ public static partial class SyncTivi
         {
             var m3uTask = mediator.Send(new GetM3UPlaylist.Request(), cancellationToken);
             var xmltvTask = mediator.Send(new GetXmlTvPlaylist.Request(), cancellationToken);
-            
             var (observer, results) = DownloadIcons(logger, Path.Combine(options.Value.ResultsDirectory, "picons"));
 
             await Task.WhenAll(m3uTask, xmltvTask);
