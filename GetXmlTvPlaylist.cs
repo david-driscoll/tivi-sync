@@ -66,15 +66,7 @@ public static partial class GetXmlTvPlaylist
                 logger.LogCritical(ex, "Unable to download xmltv file {Url}", filePath);
             }
 
-            try
-            {
-                return Tv.Load(filePath);
-            }
-            catch (XmlException ex)
-            {
-                File.Delete(filePath);
-                return await Handle(request, cancellationToken);
-            }
+            return Tv.Load(filePath);
         }
     }
 }

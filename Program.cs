@@ -10,7 +10,19 @@ var builder = Host.CreateApplicationBuilder();
 var app = await builder.ConfigureRocketSurgery();
 await app.StartAsync();
 var options = app.Services.GetRequiredService<IOptions<TiviOptions>>();
-await app.Services.GetRequiredService<IExecuteScoped<IMediator>>().Invoke((m, ct) => m.Send(new SyncTivi.Request(), ct));
+try
+{
+    await app.Services.GetRequiredService<IExecuteScoped<IMediator>>()
+        .Invoke((m, ct) => m.Send(new SyncTivi.Request(), ct));
+}
+catch (Exception e)
+{
+    AnsiConsole.WriteException(e);
+    Directory.EnumerateFiles(options.Value.CacheDirectory).ForEach(File.Delete);
+    await app.Services.GetRequiredService<IExecuteScoped<IMediator>>()
+        .Invoke((m, ct) => m.Send(new SyncTivi.Request(), ct));
+}
+
 var moment = DateTimeOffset.Now;
 var table = new Table();
 table.AddColumns("Name", "Size", "Modified");
