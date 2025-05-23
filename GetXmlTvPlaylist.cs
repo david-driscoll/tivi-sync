@@ -17,6 +17,7 @@ public static partial class GetXmlTvPlaylist
             var cacheDirectory = options.Value.CacheDirectory;
             var fileName = $"{options.Value.Hostname}.xml";
             var filePath = Path.Combine(cacheDirectory, fileName);
+            
             try
             {
                 using var client = new HttpClient();
@@ -29,6 +30,7 @@ public static partial class GetXmlTvPlaylist
                     Host = options.Value.Hostname,
                 };
 
+                logger.LogInformation("Downloading xmltv file {FilePath} from {Url}", filePath, url.Uri);
 
                 var response =
                     await client.SendAsync(new HttpRequestMessage(HttpMethod.Get, url.Uri), cancellationToken);
@@ -55,6 +57,7 @@ public static partial class GetXmlTvPlaylist
 
                 await using var fileStream = File.Create(filePath);
                 await stream.CopyToAsync(fileStream, cancellationToken);
+                logger.LogInformation("Downloaded xmltv file {FilePath} from {Url}", filePath, url.Uri);
             }
             catch (Exception ex) when (!File.Exists(filePath))
             {

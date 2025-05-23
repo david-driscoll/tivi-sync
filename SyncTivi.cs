@@ -69,14 +69,18 @@ public static partial class SyncTivi
 
             foreach (var (category, channels) in channelsByCategory)
             {
+                logger.LogInformation("Saving {Category} with {Count} channels", category, channels.Count);
                 SaveModifiedPlaylist(channels, category.ToString());
             }
 
             var filteredChannels = m3UReader.Channels
                 .Where(z => MatchCategory(z) is not (RecordCategory.Dropped or RecordCategory.Skipped
-                    or RecordCategory.PayPerView or RecordCategory.Australia or RecordCategory.NewZealand));
+                    or RecordCategory.PayPerView or RecordCategory.Australia or RecordCategory.NewZealand))
+                .ToArray();
+            logger.LogInformation("Saving combined with {Count} channels", filteredChannels.Count());
             SaveModifiedPlaylist(filteredChannels, "combined");
 
+            logger.LogInformation("Downloading picons");
             await results(cancellationToken);
 
             void SaveModifiedPlaylist(IEnumerable<Channel> channels, string name)
