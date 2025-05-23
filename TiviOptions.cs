@@ -47,7 +47,6 @@ public class TiviOptions
 public class TiviProxyOptions
 {
     public string? Hostname { get; set; } = null!;
-    public string? Icon { get; set; } = null!;
     public string? Username { get; set; } = null!;
     public string? Password { get; set; } = null!;
 }

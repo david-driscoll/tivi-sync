@@ -1,3 +1,4 @@
+using System.Xml;
 using MediatR;
 using Microsoft.Extensions.Logging;
 using Microsoft.Extensions.Options;
@@ -65,7 +66,15 @@ public static partial class GetXmlTvPlaylist
                 logger.LogCritical(ex, "Unable to download xmltv file {Url}", filePath);
             }
 
-            return Tv.Load(filePath);
+            try
+            {
+                return Tv.Load(filePath);
+            }
+            catch (XmlException ex)
+            {
+                File.Delete(filePath);
+                return await Handle(request, cancellationToken);
+            }
         }
     }
 }
