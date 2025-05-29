@@ -103,12 +103,17 @@ public static partial class SyncTivi
                             TvgID = x.TvgID,
                             TvgName = x.TvgName,
                         })
+                        .OrderBy(z => z.GroupTitle)
+                        .ThenBy(z => z.TvgName)
                     ],
                 };
                 var channelsToCopy = channels
                     .Where(z => !string.IsNullOrWhiteSpace(z.TvgID)).Select(z => z.TvgID)
                     .Distinct();
-                var xmlChannels = epg.Channel.Join(channelsToCopy, z => z.Id, z => z, (a, _) => a).ToList();
+                var xmlChannels = epg.Channel
+                    .Join(channelsToCopy, z => z.Id, z => z, (a, _) => a)
+                    .OrderBy(z => z.Id)
+                    .ToList();
                 var newepg = new Tv()
                 {
                     Date = epg.Date,
@@ -119,12 +124,13 @@ public static partial class SyncTivi
                     Sourceinfourl = null,
                     Programme =
                     [
-                        .. xmlChannels.SelectMany(channel => epg.Programme.Where(z => z.Channel == channel.Id))
+                        .. xmlChannels
+                            .SelectMany(channel => epg.Programme.Where(z => z.Channel == channel.Id))
                     ],
                     Channel = xmlChannels,
                 };
 
-                newm3U.SaveM3U(Path.Combine(resultsDirectory, $"{name}.m3u").ToLowerInvariant(), M3UType.TagsType);
+                newm3U.SaveM3U(Path.Combine(resultsDirectory, $"{name}.m3u").ToLowerInvariant(), M3UType.AttributesType);
                 newepg.Save(Path.Combine(resultsDirectory, $"{name}.xml").ToLowerInvariant());
             }
         }
