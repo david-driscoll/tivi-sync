@@ -71,9 +71,18 @@ public static partial class GetM3UPlaylist
             catch (Exception ex)
             {
                 logger.LogCritical(ex, "Unable to download m3u file {Url}", filePath);
-            }
 
-            return M3UManager.M3UManager.ParseFromFile(filePath);
+            }
+            
+            try
+            {
+                return M3UManager.M3UManager.ParseFromFile(filePath);
+            }
+            catch when (File.Exists(filePath))
+            {
+                File.Delete(filePath);
+                throw;
+            }
         }
     }
 }
