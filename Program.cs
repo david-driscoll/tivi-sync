@@ -18,9 +18,6 @@ try
 catch (Exception e)
 {
     AnsiConsole.WriteException(e);
-    Directory.EnumerateFiles(options.Value.CacheDirectory).ForEach(File.Delete);
-    await app.Services.GetRequiredService<IExecuteScoped<IMediator>>()
-        .Invoke((m, ct) => m.Send(new SyncTivi.Request(), ct));
 }
 
 var moment = DateTimeOffset.Now;
