@@ -1,3 +1,4 @@
+using System.Net.Http.Headers;
 using M3UManager.Models;
 using MediatR;
 using Microsoft.Extensions.Logging;
@@ -24,8 +25,17 @@ public static partial class GetM3UPlaylist
 
             try
             {
-                using var client = new HttpClient();
-                client.Timeout = TimeSpan.FromMinutes(3);
+                using var client = new HttpClient()
+                {
+                    DefaultRequestHeaders =
+                    {
+                        UserAgent =
+                        {
+                            ProductInfoHeaderValue.Parse("VLC")
+                        }
+                    }
+                };
+                client.Timeout = TimeSpan.FromMinutes(10);
                 var url = new UriBuilder()
                 {
                     Scheme = "http",
@@ -37,19 +47,6 @@ public static partial class GetM3UPlaylist
 
                 logger.LogInformation("Downloading m3u file {FilePath} from {Url}", filePath, url.Uri);
 
-                var response =
-                    await client.SendAsync(new HttpRequestMessage(HttpMethod.Get, url.Uri), cancellationToken);
-                if (!response.IsSuccessStatusCode)
-                {
-                    logger.LogCritical("Unable to download m3u file {Url} ({StatusCode} {Reason})", url.Uri,
-                        response.StatusCode, response.ReasonPhrase);
-                    logger.LogCritical("Response: {Response}",
-                        await response.Content.ReadAsStringAsync(cancellationToken));
-                    throw new RequestFailedException($"Unable to download m3u file {url.Uri}");
-                }
-
-                var stream = await response.Content.ReadAsStreamAsync(cancellationToken);
-
                 if (!Directory.Exists(cacheDirectory))
                 {
                     Directory.CreateDirectory(cacheDirectory);
@@ -60,6 +57,7 @@ public static partial class GetM3UPlaylist
                     File.Delete(filePath);
                 }
 
+                var stream = await client.GetStreamAsync(url.Uri, cancellationToken);
                 await using var fileStream = File.Create(filePath);
                 await stream.CopyToAsync(fileStream, cancellationToken);
 

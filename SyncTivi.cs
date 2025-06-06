@@ -80,7 +80,13 @@ public static partial class SyncTivi
             SaveModifiedPlaylist(filteredChannels, "combined");
 
             logger.LogInformation("Downloading picons");
-            await results(cancellationToken);
+            var icons = await results(cancellationToken);
+            await Directory.EnumerateFileSystemEntries(Path.Combine(options.Value.ResultsDirectory, "picons"), "*", SearchOption.AllDirectories)
+                .ToAsyncEnumerable()
+                .Where(z => !icons.Contains(z) && File.GetLastWriteTimeUtc(z) < DateTime.UtcNow.Subtract(TimeSpan.FromDays(1)))
+                .Do(z => logger.LogDebug("Removing picon {IconPath}", z))
+                .ForEachAsync(File.Delete, cancellationToken);
+            // 
 
             void SaveModifiedPlaylist(IEnumerable<Channel> channels, string name)
             {
@@ -162,7 +168,7 @@ public static partial class SyncTivi
             if (groupTags is [_, var mid, ..] &&
                 MidTagsToIgnore.Any(x => mid.Contains(x, StringComparison.OrdinalIgnoreCase)))
             {
-                return 0;
+                return RecordCategory.Skipped;
             }
 
             var titleTags =
@@ -170,7 +176,7 @@ public static partial class SyncTivi
             if (titleTags is [_, var mid2, ..] &&
                 MidTagsToIgnore.Any(x => mid2.Contains(x, StringComparison.OrdinalIgnoreCase)))
             {
-                return 0;
+                return RecordCategory.Skipped;
             }
 
             var g = MatchTags(groupTags);
@@ -190,23 +196,44 @@ public static partial class SyncTivi
                 return g;
             }
 
-            var mediaExtension = Path.GetExtension(channel.MediaUrl);
+            // var mediaExtension = Path.GetExtension(channel.MediaUrl);
+            // if (mediaExtension is ".mp4" or ".mkv" or ".avi")
+            // {
+            //     return RecordCategory.MovieAndSeries;
+            // }
+            //
+            // var mediaUrl = new Uri(channel.MediaUrl);
+            // if (
+            //     mediaUrl.AbsolutePath.StartsWith("/movie", StringComparison.OrdinalIgnoreCase)
+            //     || mediaUrl.AbsolutePath.StartsWith("/series", StringComparison.OrdinalIgnoreCase)
+            //     || mediaUrl.AbsolutePath.Contains("/MOVIES & SERIES/", StringComparison.OrdinalIgnoreCase)
+            // )
+            // {
+            //     return RecordCategory.MovieAndSeries;
+            // }
+
+            return g;
+        }
+
+        static bool IsMovieAndSeries(string url)
+        {
+            var mediaExtension = Path.GetExtension(url);
             if (mediaExtension is ".mp4" or ".mkv" or ".avi")
             {
-                return RecordCategory.MovieAndSeries;
+                return true;
             }
-
-            var mediaUrl = new Uri(channel.MediaUrl);
+            
+            var mediaUrl = new Uri(url);
             if (
                 mediaUrl.AbsolutePath.StartsWith("/movie", StringComparison.OrdinalIgnoreCase)
                 || mediaUrl.AbsolutePath.StartsWith("/series", StringComparison.OrdinalIgnoreCase)
                 || mediaUrl.AbsolutePath.Contains("/MOVIES & SERIES/", StringComparison.OrdinalIgnoreCase)
             )
             {
-                return RecordCategory.MovieAndSeries;
+                return true;
             }
 
-            return g;
+            return false;
         }
 
         static RecordCategory MatchTags(string[] tags)
@@ -267,7 +294,7 @@ public static partial class SyncTivi
             "BET+", "UFC & FITE", "DIRTVISION"
         ];
 
-        private (Func<string, string> proxyIcon, Func<CancellationToken, Task> results) DownloadIcons(ILogger logger,
+        private (Func<string, string> proxyIcon, Func<CancellationToken, Task<HashSet<string>>> results) DownloadIcons(ILogger logger,
             string directory)
         {
             var client = new HttpClient();
@@ -290,29 +317,37 @@ public static partial class SyncTivi
                 return builder.ToString();
             }
 
-            async Task Icons(CancellationToken ct)
+            async Task<HashSet<string>> Icons(CancellationToken ct)
             {
-                await foreach (var item in items.Chunk(4).ToAsyncEnumerable().WithCancellation(ct))
+                var foundIcons = new HashSet<string>();
+                await foreach (var item in items.ToAsyncEnumerable()
+                                   .SelectAwait(async (z )  => await DownloadIcon(z.source, z.cachePath, z.proxyUrl, CancellationToken.None) ? z.cachePath : null)
+                                   .Buffer(10)
+                                   .WithCancellation(ct))
                 {
-                    await Task.WhenAll(item.Select(z => DownloadIcon(z.source, z.cachePath, z.proxyUrl, ct)));
+                    item.Where(z => z != null).ForEach(s => foundIcons.Add(s!));
                 }
+
+                return foundIcons;
             }
 
-            async Task DownloadIcon(string url, string cachePath, string proxyUrl, CancellationToken ct)
+            async Task<bool> DownloadIcon(string url, string cachePath, string proxyUrl, CancellationToken ct)
             {
                 if (!Uri.TryCreate(url, UriKind.Absolute, out var uri))
                 {
-                    return;
+                    return false;
                 }
 
                 try
                 {
                     var stream = await client.GetStreamAsync(url, ct);
-                    if (File.Exists(cachePath) && DateTime.UtcNow.Subtract(TimeSpan.FromDays(1)) < File.GetLastWriteTimeUtc(cachePath)) return;
+                    if (File.Exists(cachePath) && DateTime.UtcNow.Subtract(TimeSpan.FromDays(1)) <
+                        File.GetLastWriteTimeUtc(cachePath)) return false;
                     logger.LogInformation("Downloading {Url} to {Path}", url, cachePath);
                     Directory.CreateDirectory(Path.GetDirectoryName(cachePath)!);
                     await using var write = File.OpenWrite(cachePath);
                     await stream.CopyToAsync(write, ct);
+                    return true;
                 }
                 catch (HttpRequestException ex) when (ex.StatusCode == HttpStatusCode.NotFound)
                 {
@@ -322,6 +357,8 @@ public static partial class SyncTivi
                 {
                     logger.LogWarning(ex, "Other problem downloading {Url}", url);
                 }
+
+                return false;
             }
 
             return (ProxyIconFunc, Icons);
