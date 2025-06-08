@@ -19,16 +19,16 @@ catch (Exception e)
 {
     AnsiConsole.WriteException(e);
 }
-
-var moment = DateTimeOffset.Now;
-var table = new Table();
-table.AddColumns("Name", "Size", "Modified");
-new DirectoryInfo(options.Value.ResultsDirectory)
-    .EnumerateFiles()
-    .OrderBy(z => z.Name)
-    .ForEach(z =>
-    {
-        table.AddRow(z.Name, z.Length.Bytes().Humanize(), z.LastWriteTime.Humanize(dateToCompareAgainst: moment.LocalDateTime));
-    });
-                
-AnsiConsole.Write(table);
+//
+// var moment = DateTimeOffset.Now;
+// var table = new Table();
+// table.AddColumns("Name", "Size", "Modified");
+// new DirectoryInfo(options.Value.ResultsDirectory)
+//     .EnumerateFiles()
+//     .OrderBy(z => z.Name)
+//     .ForEach(z =>
+//     {
+//         table.AddRow(z.Name, z.Length.Bytes().Humanize(), z.LastWriteTime.Humanize(dateToCompareAgainst: moment.LocalDateTime));
+//     });
+//                 
+// AnsiConsole.Write(table);
