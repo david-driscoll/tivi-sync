@@ -14,6 +14,7 @@
     <PackageReference Include="Humanizer.Core" Version="2.14.1" />
     <PackageReference Include="M3U8Reader" Version="1.0.0" />
     <PackageReference Include="M3UManager" Version="1.0.5.9" />
+    <PackageReference Include="Minio" Version="6.0.4" />
     <PackageReference Include="Rocket.Surgery.Conventions.Configuration.Yaml" Version="14.0.1-beta.54" />
     <PackageReference Include="Rocket.Surgery.Extensions" Version="13.0.0" />
     <PackageReference Include="Rocket.Surgery.Extensions.Logging" Version="13.0.0" />
@@ -25,6 +26,14 @@
     <PackageReference Include="System.Reactive.Observable.Aliases" Version="6.0.1" />
     <PackageReference Include="XmlTvSharp" Version="1.1.2" />
     <PackageReference Include="XObjectsCodeGen" Version="3.2.6" />
+    
+<!--    <PackageReference Include="Microsoft.Extensions.Http.Resilience" Version="9.0.0" />-->
+<!--    <PackageReference Include="Microsoft.Extensions.ServiceDiscovery" Version="9.0.0" />-->
+<!--    <PackageReference Include="OpenTelemetry.Exporter.OpenTelemetryProtocol" Version="1.9.0" />-->
+<!--    <PackageReference Include="OpenTelemetry.Extensions.Hosting" Version="1.9.0" />-->
+<!--    <PackageReference Include="OpenTelemetry.Instrumentation.AspNetCore" Version="1.9.0" />-->
+<!--    <PackageReference Include="OpenTelemetry.Instrumentation.Http" Version="1.9.0" />-->
+<!--    <PackageReference Include="OpenTelemetry.Instrumentation.Runtime" Version="1.9.0" />-->
   </ItemGroup>
 
   <ItemGroup>
