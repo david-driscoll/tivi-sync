@@ -2,7 +2,7 @@ using System.Diagnostics;
 using System.Xml.Schema;
 using Xml.Schema.Linq;
 
-namespace tivi.Models;
+namespace Tivi.Models;
 
 public class LinqToXsdTypeManager : ILinqToXsdTypeManager
 {
@@ -15,51 +15,51 @@ public class LinqToXsdTypeManager : ILinqToXsdTypeManager
 
   private static void BuildElementDictionary()
   {
-    _elementDictionary.Add(System.Xml.Linq.XName.Get("tv", ""), typeof(global::tivi.Models.Tv));
-    _elementDictionary.Add(System.Xml.Linq.XName.Get("channel", ""), typeof(global::tivi.Models.Channel));
-    _elementDictionary.Add(System.Xml.Linq.XName.Get("display-name", ""), typeof(global::tivi.Models.Displayname));
-    _elementDictionary.Add(System.Xml.Linq.XName.Get("icon", ""), typeof(global::tivi.Models.Icon));
-    _elementDictionary.Add(System.Xml.Linq.XName.Get("url", ""), typeof(global::tivi.Models.Url));
-    _elementDictionary.Add(System.Xml.Linq.XName.Get("programme", ""), typeof(global::tivi.Models.Programme));
-    _elementDictionary.Add(System.Xml.Linq.XName.Get("title", ""), typeof(global::tivi.Models.Title));
-    _elementDictionary.Add(System.Xml.Linq.XName.Get("sub-title", ""), typeof(global::tivi.Models.Subtitle));
-    _elementDictionary.Add(System.Xml.Linq.XName.Get("desc", ""), typeof(global::tivi.Models.Desc));
-    _elementDictionary.Add(System.Xml.Linq.XName.Get("credits", ""), typeof(global::tivi.Models.Credits));
-    _elementDictionary.Add(System.Xml.Linq.XName.Get("director", ""), typeof(global::tivi.Models.Director));
-    _elementDictionary.Add(System.Xml.Linq.XName.Get("actor", ""), typeof(global::tivi.Models.Actor));
-    _elementDictionary.Add(System.Xml.Linq.XName.Get("writer", ""), typeof(global::tivi.Models.Writer));
-    _elementDictionary.Add(System.Xml.Linq.XName.Get("adapter", ""), typeof(global::tivi.Models.Adapter));
-    _elementDictionary.Add(System.Xml.Linq.XName.Get("producer", ""), typeof(global::tivi.Models.Producer));
-    _elementDictionary.Add(System.Xml.Linq.XName.Get("composer", ""), typeof(global::tivi.Models.Composer));
-    _elementDictionary.Add(System.Xml.Linq.XName.Get("editor", ""), typeof(global::tivi.Models.Editor));
-    _elementDictionary.Add(System.Xml.Linq.XName.Get("presenter", ""), typeof(global::tivi.Models.Presenter));
-    _elementDictionary.Add(System.Xml.Linq.XName.Get("commentator", ""), typeof(global::tivi.Models.Commentator));
-    _elementDictionary.Add(System.Xml.Linq.XName.Get("guest", ""), typeof(global::tivi.Models.Guest));
-    _elementDictionary.Add(System.Xml.Linq.XName.Get("category", ""), typeof(global::tivi.Models.Category));
-    _elementDictionary.Add(System.Xml.Linq.XName.Get("keyword", ""), typeof(global::tivi.Models.Keyword));
-    _elementDictionary.Add(System.Xml.Linq.XName.Get("language", ""), typeof(global::tivi.Models.Language));
-    _elementDictionary.Add(System.Xml.Linq.XName.Get("orig-language", ""), typeof(global::tivi.Models.Origlanguage));
-    _elementDictionary.Add(System.Xml.Linq.XName.Get("length", ""), typeof(global::tivi.Models.Length));
-    _elementDictionary.Add(System.Xml.Linq.XName.Get("country", ""), typeof(global::tivi.Models.Country));
-    _elementDictionary.Add(System.Xml.Linq.XName.Get("episode-num", ""), typeof(global::tivi.Models.Episodenum));
-    _elementDictionary.Add(System.Xml.Linq.XName.Get("video", ""), typeof(global::tivi.Models.Video));
-    _elementDictionary.Add(System.Xml.Linq.XName.Get("audio", ""), typeof(global::tivi.Models.Audio));
-    _elementDictionary.Add(System.Xml.Linq.XName.Get("previously-shown", ""), typeof(global::tivi.Models.Previouslyshown));
-    _elementDictionary.Add(System.Xml.Linq.XName.Get("premiere", ""), typeof(global::tivi.Models.Premiere));
-    _elementDictionary.Add(System.Xml.Linq.XName.Get("last-chance", ""), typeof(global::tivi.Models.Lastchance));
-    _elementDictionary.Add(System.Xml.Linq.XName.Get("new", ""), typeof(global::tivi.Models.New));
-    _elementDictionary.Add(System.Xml.Linq.XName.Get("subtitles", ""), typeof(global::tivi.Models.Subtitles));
-    _elementDictionary.Add(System.Xml.Linq.XName.Get("rating", ""), typeof(global::tivi.Models.Rating));
-    _elementDictionary.Add(System.Xml.Linq.XName.Get("star-rating", ""), typeof(global::tivi.Models.Starrating));
-    _elementDictionary.Add(System.Xml.Linq.XName.Get("review", ""), typeof(global::tivi.Models.Review));
-    _elementDictionary.Add(System.Xml.Linq.XName.Get("image", ""), typeof(global::tivi.Models.Image));
-    _elementDictionary.Add(System.Xml.Linq.XName.Get("date", ""), typeof(global::tivi.Models.Date));
-    _elementDictionary.Add(System.Xml.Linq.XName.Get("present", ""), typeof(global::tivi.Models.Present));
-    _elementDictionary.Add(System.Xml.Linq.XName.Get("colour", ""), typeof(global::tivi.Models.Colour));
-    _elementDictionary.Add(System.Xml.Linq.XName.Get("aspect", ""), typeof(global::tivi.Models.Aspect));
-    _elementDictionary.Add(System.Xml.Linq.XName.Get("quality", ""), typeof(global::tivi.Models.Quality));
-    _elementDictionary.Add(System.Xml.Linq.XName.Get("stereo", ""), typeof(global::tivi.Models.Stereo));
-    _elementDictionary.Add(System.Xml.Linq.XName.Get("value", ""), typeof(global::tivi.Models.Value));
+    _elementDictionary.Add(System.Xml.Linq.XName.Get("tv", ""), typeof(global::Tivi.Models.Tv));
+    _elementDictionary.Add(System.Xml.Linq.XName.Get("channel", ""), typeof(global::Tivi.Models.Channel));
+    _elementDictionary.Add(System.Xml.Linq.XName.Get("display-name", ""), typeof(global::Tivi.Models.Displayname));
+    _elementDictionary.Add(System.Xml.Linq.XName.Get("icon", ""), typeof(global::Tivi.Models.Icon));
+    _elementDictionary.Add(System.Xml.Linq.XName.Get("url", ""), typeof(global::Tivi.Models.Url));
+    _elementDictionary.Add(System.Xml.Linq.XName.Get("programme", ""), typeof(global::Tivi.Models.Programme));
+    _elementDictionary.Add(System.Xml.Linq.XName.Get("title", ""), typeof(global::Tivi.Models.Title));
+    _elementDictionary.Add(System.Xml.Linq.XName.Get("sub-title", ""), typeof(global::Tivi.Models.Subtitle));
+    _elementDictionary.Add(System.Xml.Linq.XName.Get("desc", ""), typeof(global::Tivi.Models.Desc));
+    _elementDictionary.Add(System.Xml.Linq.XName.Get("credits", ""), typeof(global::Tivi.Models.Credits));
+    _elementDictionary.Add(System.Xml.Linq.XName.Get("director", ""), typeof(global::Tivi.Models.Director));
+    _elementDictionary.Add(System.Xml.Linq.XName.Get("actor", ""), typeof(global::Tivi.Models.Actor));
+    _elementDictionary.Add(System.Xml.Linq.XName.Get("writer", ""), typeof(global::Tivi.Models.Writer));
+    _elementDictionary.Add(System.Xml.Linq.XName.Get("adapter", ""), typeof(global::Tivi.Models.Adapter));
+    _elementDictionary.Add(System.Xml.Linq.XName.Get("producer", ""), typeof(global::Tivi.Models.Producer));
+    _elementDictionary.Add(System.Xml.Linq.XName.Get("composer", ""), typeof(global::Tivi.Models.Composer));
+    _elementDictionary.Add(System.Xml.Linq.XName.Get("editor", ""), typeof(global::Tivi.Models.Editor));
+    _elementDictionary.Add(System.Xml.Linq.XName.Get("presenter", ""), typeof(global::Tivi.Models.Presenter));
+    _elementDictionary.Add(System.Xml.Linq.XName.Get("commentator", ""), typeof(global::Tivi.Models.Commentator));
+    _elementDictionary.Add(System.Xml.Linq.XName.Get("guest", ""), typeof(global::Tivi.Models.Guest));
+    _elementDictionary.Add(System.Xml.Linq.XName.Get("category", ""), typeof(global::Tivi.Models.Category));
+    _elementDictionary.Add(System.Xml.Linq.XName.Get("keyword", ""), typeof(global::Tivi.Models.Keyword));
+    _elementDictionary.Add(System.Xml.Linq.XName.Get("language", ""), typeof(global::Tivi.Models.Language));
+    _elementDictionary.Add(System.Xml.Linq.XName.Get("orig-language", ""), typeof(global::Tivi.Models.Origlanguage));
+    _elementDictionary.Add(System.Xml.Linq.XName.Get("length", ""), typeof(global::Tivi.Models.Length));
+    _elementDictionary.Add(System.Xml.Linq.XName.Get("country", ""), typeof(global::Tivi.Models.Country));
+    _elementDictionary.Add(System.Xml.Linq.XName.Get("episode-num", ""), typeof(global::Tivi.Models.Episodenum));
+    _elementDictionary.Add(System.Xml.Linq.XName.Get("video", ""), typeof(global::Tivi.Models.Video));
+    _elementDictionary.Add(System.Xml.Linq.XName.Get("audio", ""), typeof(global::Tivi.Models.Audio));
+    _elementDictionary.Add(System.Xml.Linq.XName.Get("previously-shown", ""), typeof(global::Tivi.Models.Previouslyshown));
+    _elementDictionary.Add(System.Xml.Linq.XName.Get("premiere", ""), typeof(global::Tivi.Models.Premiere));
+    _elementDictionary.Add(System.Xml.Linq.XName.Get("last-chance", ""), typeof(global::Tivi.Models.Lastchance));
+    _elementDictionary.Add(System.Xml.Linq.XName.Get("new", ""), typeof(global::Tivi.Models.New));
+    _elementDictionary.Add(System.Xml.Linq.XName.Get("subtitles", ""), typeof(global::Tivi.Models.Subtitles));
+    _elementDictionary.Add(System.Xml.Linq.XName.Get("rating", ""), typeof(global::Tivi.Models.Rating));
+    _elementDictionary.Add(System.Xml.Linq.XName.Get("star-rating", ""), typeof(global::Tivi.Models.Starrating));
+    _elementDictionary.Add(System.Xml.Linq.XName.Get("review", ""), typeof(global::Tivi.Models.Review));
+    _elementDictionary.Add(System.Xml.Linq.XName.Get("image", ""), typeof(global::Tivi.Models.Image));
+    _elementDictionary.Add(System.Xml.Linq.XName.Get("date", ""), typeof(global::Tivi.Models.Date));
+    _elementDictionary.Add(System.Xml.Linq.XName.Get("present", ""), typeof(global::Tivi.Models.Present));
+    _elementDictionary.Add(System.Xml.Linq.XName.Get("colour", ""), typeof(global::Tivi.Models.Colour));
+    _elementDictionary.Add(System.Xml.Linq.XName.Get("aspect", ""), typeof(global::Tivi.Models.Aspect));
+    _elementDictionary.Add(System.Xml.Linq.XName.Get("quality", ""), typeof(global::Tivi.Models.Quality));
+    _elementDictionary.Add(System.Xml.Linq.XName.Get("stereo", ""), typeof(global::Tivi.Models.Stereo));
+    _elementDictionary.Add(System.Xml.Linq.XName.Get("value", ""), typeof(global::Tivi.Models.Value));
   }
 
   private static XmlSchemaSet _schemaSet;

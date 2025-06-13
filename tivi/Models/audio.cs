@@ -3,7 +3,7 @@ using System.Diagnostics;
 using System.Xml.Linq;
 using Xml.Schema.Linq;
 
-namespace tivi.Models;
+namespace Tivi.Models;
 
 /// <summary>
 /// <para>

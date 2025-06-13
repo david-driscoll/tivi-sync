@@ -3,7 +3,7 @@ using System.Xml;
 using System.Xml.Linq;
 using Xml.Schema.Linq;
 
-namespace tivi.Models;
+namespace Tivi.Models;
 
 public partial class XRoot
 {

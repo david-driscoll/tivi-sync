@@ -1,24 +1,26 @@
-using System.Collections.Frozen;
 using System.Net;
-using System.Reactive.Linq;
-using System.Reactive.Subjects;
-using System.Reactive.Threading.Tasks;
-using System.Security.Cryptography;
-using System.Text;
+using System.Xml;
 using Humanizer;
 using M3UManager;
 using M3UManager.Models;
 using MediatR;
 using Microsoft.Extensions.Options;
+using Minio;
+using Minio.DataModel;
+using Minio.DataModel.Args;
 using Rocket.Surgery.Extensions.Encoding;
-using tivi.Models;
+using Rocket.Surgery.Extensions.Logging;
+using Tivi.Models;
 using Channel = M3UManager.Models.Channel;
+
+namespace Tivi;
 
 public static partial class SyncTivi
 {
     public record Request() : IRequest;
 
     class Handler(
+        IMinioClient minioClient,
         IMediator mediator,
         IOptions<TiviOptions> options,
         IOptions<TiviProxyOptions> proxyOptions,
@@ -26,9 +28,16 @@ public static partial class SyncTivi
     {
         public async Task Handle(Request request, CancellationToken cancellationToken)
         {
+            if (!await minioClient.BucketExistsAsync(new BucketExistsArgs().WithBucket(Constants.ResultsBucketName),
+                    cancellationToken))
+            {
+                await minioClient.MakeBucketAsync(new MakeBucketArgs().WithBucket(Constants.ResultsBucketName),
+                    cancellationToken);
+            }
+
             var m3uTask = mediator.Send(new GetM3UPlaylist.Request(), cancellationToken);
             var xmltvTask = mediator.Send(new GetXmlTvPlaylist.Request(), cancellationToken);
-            var (observer, results) = DownloadIcons(logger, Path.Combine(options.Value.ResultsDirectory, "picons"));
+            var (observer, results) = DownloadIcons(logger);
 
             await Task.WhenAll(m3uTask, xmltvTask);
             var m3UReader = await m3uTask;
@@ -39,7 +48,8 @@ public static partial class SyncTivi
             var channelsByCategory = m3UReader.Channels
                 //.Where(z => countryCodes.Contains(GetCountryCode(z)))
                 .GroupBy(MatchCategory)
-                .Where(z => z.Key is not (RecordCategory.Dropped or RecordCategory.Skipped or RecordCategory.PayPerView or RecordCategory.Australia or RecordCategory.NewZealand))
+                .Where(z => z.Key is not (RecordCategory.Dropped or RecordCategory.Skipped or RecordCategory.PayPerView
+                    or RecordCategory.Australia or RecordCategory.NewZealand))
                 .ToDictionary(z => z.Key, z => z.ToList());
             var locals = channelsByCategory[RecordCategory.Local];
             var us = channelsByCategory[RecordCategory.UnitedStates];
@@ -60,35 +70,44 @@ public static partial class SyncTivi
                 });
             }
 
-            var resultsDirectory = options.Value.ResultsDirectory;
-            if (!Directory.Exists(resultsDirectory))
-            {
-                Directory.CreateDirectory(resultsDirectory);
-            }
-
             foreach (var (category, channels) in channelsByCategory)
             {
                 logger.LogInformation("Saving {Category} with {Count} channels", category, channels.Count);
-                SaveModifiedPlaylist(channels, category.ToString());
+                await SaveModifiedPlaylist(channels, category.ToString());
             }
 
-            var filteredChannels = m3UReader.Channels
-                .Where(z => MatchCategory(z) is not (RecordCategory.Dropped or RecordCategory.Skipped
-                    or RecordCategory.PayPerView or RecordCategory.Australia or RecordCategory.NewZealand))
-                .ToArray();
-            logger.LogInformation("Saving combined with {Count} channels", filteredChannels.Count());
-            SaveModifiedPlaylist(filteredChannels, "combined");
+            // var filteredChannels = m3UReader.Channels
+            //     .Where(z => MatchCategory(z) is not (RecordCategory.Dropped or RecordCategory.Skipped
+            //         or RecordCategory.PayPerView or RecordCategory.Australia or RecordCategory.NewZealand))
+            //     .ToArray();
+            // logger.LogInformation("Saving combined with {Count} channels", filteredChannels.Count());
+            // await SaveModifiedPlaylist(filteredChannels, "combined");
 
-            logger.LogInformation("Downloading picons");
-            var icons = await results(cancellationToken);
-            await Directory.EnumerateFileSystemEntries(Path.Combine(options.Value.ResultsDirectory, "picons"), "*", SearchOption.AllDirectories)
-                .ToAsyncEnumerable()
-                .Where(z => !icons.Contains(z) && File.GetLastWriteTimeUtc(z) < DateTime.UtcNow.Subtract(TimeSpan.FromDays(1)))
-                .Do(z => logger.LogDebug("Removing picon {IconPath}", z))
-                .ForEachAsync(File.Delete, cancellationToken);
+            using (logger.TimeInformation("Downloading picons"))
+            {
+                var icons = await results(cancellationToken);
+
+                await minioClient.ListObjectsEnumAsync(new ListObjectsArgs()
+                        .WithBucket(Constants.ResultsBucketName)
+                        .WithPrefix("icons"), cancellationToken)
+                    .Where(z =>
+                    {
+                        if (z.LastModifiedDateTime < DateTime.Now.Subtract(TimeSpan.FromDays(1))) return true;
+                        logger.LogDebug("Skipping picon {IconPath} as it is not older than 1 day", z.Key);
+                        return false;
+                    })
+                    .Where(z => !icons.Contains(z.Key))
+                    .Do(z => logger.LogDebug("Removing picon {IconPath}", z))
+                    .ForEachAwaitAsync(async path =>
+                    {
+                        await minioClient.RemoveObjectAsync(new RemoveObjectArgs()
+                            .WithBucket(Constants.ResultsBucketName)
+                            .WithObject(path.Key), cancellationToken);
+                    }, cancellationToken);
+            }
             // 
 
-            void SaveModifiedPlaylist(IEnumerable<Channel> channels, string name)
+            async Task SaveModifiedPlaylist(IEnumerable<Channel> channels, string name)
             {
                 var newm3U = new M3U()
                 {
@@ -100,17 +119,17 @@ public static partial class SyncTivi
                     Channels =
                     [
                         ..channels.Select(x => new Channel()
-                        {
-                            Duration = x.Duration,
-                            GroupTitle = x.GroupTitle,
-                            Logo = observer(x.Logo),
-                            MediaUrl = ReplaceUri(x.MediaUrl),
-                            Title = x.Title,
-                            TvgID = x.TvgID,
-                            TvgName = x.TvgName,
-                        })
-                        .OrderBy(z => z.GroupTitle)
-                        .ThenBy(z => z.TvgName)
+                            {
+                                Duration = x.Duration,
+                                GroupTitle = x.GroupTitle,
+                                Logo = observer(x.Logo),
+                                MediaUrl = ReplaceUri(x.MediaUrl),
+                                Title = x.Title,
+                                TvgID = x.TvgID,
+                                TvgName = x.TvgName,
+                            })
+                            .OrderBy(z => z.GroupTitle)
+                            .ThenBy(z => z.TvgName)
                     ],
                 };
                 var channelsToCopy = channels
@@ -136,8 +155,30 @@ public static partial class SyncTivi
                     Channel = xmlChannels,
                 };
 
-                newm3U.SaveM3U(Path.Combine(resultsDirectory, $"{name}.m3u").ToLowerInvariant(), M3UType.AttributesType);
-                newepg.Save(Path.Combine(resultsDirectory, $"{name}.xml").ToLowerInvariant());
+                using var m3UStream = new MemoryStream();
+                await using var meuWriter = new StreamWriter(m3UStream, leaveOpen: true);
+                await newm3U.SaveM3U(meuWriter, M3UType.TagsType);
+                await meuWriter.FlushAsync(cancellationToken);
+                m3UStream.Seek(0, SeekOrigin.Begin);
+
+                using var epgStream = new MemoryStream();
+                await using var epgWriter = new StreamWriter(epgStream, leaveOpen: true);
+                await using var epgXmlWriter = new XmlTextWriter(epgWriter);
+                newepg.Save(epgWriter);
+                await epgWriter.FlushAsync(cancellationToken);
+                epgStream.Seek(0, SeekOrigin.Begin);
+
+                await minioClient.PutObjectAsync(
+                    new PutObjectArgs()
+                        .WithBucket(Constants.ResultsBucketName)
+                        .WithObject($"{name}.m3u".ToLowerInvariant())
+                        .WithObjectStream(m3UStream), cancellationToken);
+
+                await minioClient.PutObjectAsync(
+                    new PutObjectArgs()
+                        .WithBucket(Constants.ResultsBucketName)
+                        .WithObject($"{name}.xml".ToLowerInvariant())
+                        .WithObjectStream(epgStream), cancellationToken);
             }
         }
 
@@ -222,7 +263,7 @@ public static partial class SyncTivi
             {
                 return true;
             }
-            
+
             var mediaUrl = new Uri(url);
             if (
                 mediaUrl.AbsolutePath.StartsWith("/movie", StringComparison.OrdinalIgnoreCase)
@@ -294,24 +335,23 @@ public static partial class SyncTivi
             "BET+", "UFC & FITE", "DIRTVISION"
         ];
 
-        private (Func<string, string> proxyIcon, Func<CancellationToken, Task<HashSet<string>>> results) DownloadIcons(ILogger logger,
-            string directory)
+        private (Func<string, string> proxyIcon, Func<CancellationToken, Task<HashSet<string>>> results) DownloadIcons(
+            ILogger logger)
         {
             var client = new HttpClient();
             var items = new HashSet<(string source, string cachePath, string proxyUrl)>();
 
             string ProxyIconFunc(string url)
             {
-                if (!Uri.TryCreate(url, UriKind.Absolute, out var uri)) return url;
-                if (uri.Host == "image.tmdb.org") return url;
+                if (!Uri.TryCreate(url, UriKind.Absolute, out var uri) || uri.Host == "image.tmdb.org") return url;
 
-                var uriBuilder = new UriBuilder(uri);   
+                var uriBuilder = new UriBuilder(uri);
                 var builder = new UriBuilder()
                 {
                     Host = proxyOptions.Value.Hostname, Port = 443, Scheme = "https",
                     Path = Path.Combine(["icons", uriBuilder.Host, ..uriBuilder.Path.Split('/')])
                 };
-                var cachePath = Path.Combine([directory, uriBuilder.Host, ..uriBuilder.Path.Split('/')]);
+                var cachePath = Path.Combine(["icons", uriBuilder.Host, ..uriBuilder.Path.Split('/')]);
                 items.Add((url, cachePath, builder.ToString()));
 
                 return builder.ToString();
@@ -321,7 +361,10 @@ public static partial class SyncTivi
             {
                 var foundIcons = new HashSet<string>();
                 await foreach (var item in items.ToAsyncEnumerable()
-                                   .SelectAwait(async (z )  => await DownloadIcon(z.source, z.cachePath, z.proxyUrl, CancellationToken.None) ? z.cachePath : null)
+                                   .SelectAwait(async (z) =>
+                                       await DownloadIcon(z.source, z.cachePath, CancellationToken.None)
+                                           ? z.cachePath
+                                           : null)
                                    .Buffer(10)
                                    .WithCancellation(ct))
                 {
@@ -331,9 +374,9 @@ public static partial class SyncTivi
                 return foundIcons;
             }
 
-            async Task<bool> DownloadIcon(string url, string cachePath, string proxyUrl, CancellationToken ct)
+            async Task<bool> DownloadIcon(string url, string cachePath, CancellationToken ct)
             {
-                if (!Uri.TryCreate(url, UriKind.Absolute, out var uri))
+                if (!Uri.TryCreate(url, UriKind.Absolute, out _))
                 {
                     return false;
                 }
@@ -341,19 +384,27 @@ public static partial class SyncTivi
                 try
                 {
                     var stream = await client.GetStreamAsync(url, ct);
-                    if (File.Exists(cachePath) && DateTime.UtcNow.Subtract(TimeSpan.FromDays(1)) <
-                        File.GetLastWriteTimeUtc(cachePath)) return false;
+                    var cacheName = cachePath; // Base3264Encoding.EncodeString(EncodingType.Base32Url, cachePath);
+
+                    if (await minioClient.ExistsAsync(Constants.ResultsBucketName, cacheName, ct) is { } stat &&
+                        DateTime.Now.Subtract(TimeSpan.FromDays(1)) < stat.LastModified)
+                    {
+                        logger.LogTrace("Icon already exists in cache {Path}", cachePath);
+                        return false;
+                    }
+
                     logger.LogInformation("Downloading {Url} to {Path}", url, cachePath);
-                    Directory.CreateDirectory(Path.GetDirectoryName(cachePath)!);
-                    await using var write = File.OpenWrite(cachePath);
-                    await stream.CopyToAsync(write, ct);
+                    await minioClient.PutObjectAsync(new PutObjectArgs()
+                        .WithBucket(Constants.ResultsBucketName)
+                        .WithObject(cacheName)
+                        .WithObjectStream(stream), ct);
                     return true;
                 }
                 catch (HttpRequestException ex) when (ex.StatusCode == HttpStatusCode.NotFound)
                 {
                     logger.LogWarning(ex, "Icon not found {Url}", url);
                 }
-                catch (Exception ex) 
+                catch (Exception ex)
                 {
                     logger.LogWarning(ex, "Other problem downloading {Url}", url);
                 }

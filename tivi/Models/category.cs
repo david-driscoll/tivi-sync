@@ -4,8 +4,7 @@ using System.Xml.Linq;
 using System.Xml.Schema;
 using Xml.Schema.Linq;
 
-
-namespace tivi.Models;
+namespace Tivi.Models;
 
 public partial class Category : XTypedElement, IXMetaData
 {

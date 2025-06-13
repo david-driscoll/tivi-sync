@@ -1,4 +1,4 @@
-namespace tivi.Models;
+namespace Tivi.Models;
 
 enum RecordCategory
 {

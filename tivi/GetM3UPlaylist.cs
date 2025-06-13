@@ -1,27 +1,39 @@
 using System.Net.Http.Headers;
 using M3UManager.Models;
 using MediatR;
-using Microsoft.Extensions.Logging;
 using Microsoft.Extensions.Options;
+using Minio;
+using Minio.DataModel;
+using Minio.DataModel.Args;
+using Minio.DataModel.ILM;
+
+namespace Tivi;
 
 public static partial class GetM3UPlaylist
 {
     public record Request() : IRequest<M3U>;
 
     class Handler(
+        IMinioClient minioClient,
         IOptions<TiviOptions> options,
         ILogger<Handler> logger) : IRequestHandler<Request, M3U>
     {
         public async Task<M3U> Handle(Request request, CancellationToken cancellationToken)
         {
-            var cacheDirectory = options.Value.CacheDirectory;
+            if (!await minioClient.BucketExistsAsync(new BucketExistsArgs().WithBucket(Constants.CacheBucketName),
+                    cancellationToken))
+            {
+                await minioClient.MakeBucketAsync(new MakeBucketArgs().WithBucket(Constants.CacheBucketName),
+                    cancellationToken);
+            }
+
             var fileName = $"{options.Value.Hostname}.m3u";
-            var filePath = Path.Combine(cacheDirectory, fileName);
-            // if (File.Exists(filePath) &&
-            //     DateTime.UtcNow.Subtract(TimeSpan.FromHours(1)) < File.GetLastWriteTimeUtc(filePath))
-            // {
-            //     return M3UManager.M3UManager.ParseFromFile(filePath);
-            // }
+
+            if (await minioClient.ExistsAsync(Constants.CacheBucketName, fileName, cancellationToken) is {} stat &&
+                DateTime.Now.Subtract(TimeSpan.FromHours(1)) < stat.LastModified)
+            {
+                return await minioClient.GetObject(Constants.CacheBucketName, fileName, async reader => M3UManager.M3UManager.ParseFromString(await reader.ReadToEndAsync(cancellationToken)), cancellationToken);
+            }
 
             try
             {
@@ -45,44 +57,41 @@ public static partial class GetM3UPlaylist
                     Host = options.Value.Hostname,
                 };
 
-                logger.LogInformation("Downloading m3u file {FilePath} from {Url}", filePath, url.Uri);
-
-                if (!Directory.Exists(cacheDirectory))
-                {
-                    Directory.CreateDirectory(cacheDirectory);
-                }
-
-                if (File.Exists(filePath))
-                {
-                    File.Delete(filePath);
-                }
+                logger.LogInformation("Downloading m3u file {FilePath} from {Url}", fileName, url.Uri);
 
                 var stream = await client.GetStreamAsync(url.Uri, cancellationToken);
-                await using var fileStream = File.Create(filePath);
-                await stream.CopyToAsync(fileStream, cancellationToken);
+                await minioClient.PutObjectAsync(new PutObjectArgs()
+                    .WithBucket(Constants.CacheBucketName)
+                    .WithObject(fileName)
+                    .WithObjectStream(stream), cancellationToken);
 
-                logger.LogInformation("Downloaded m3u file {FilePath} from {Url}", filePath, url.Uri);
-            }
-            catch (Exception ex) when (!File.Exists(filePath))
-            {
-                logger.LogCritical(ex, "Unable to download m3u file {Url}", filePath);
-                throw new RequestFailedException($"Unable to download m3u file {filePath}", ex);
+                logger.LogInformation("Downloaded m3u file {FilePath} from {Url}", fileName, url.Uri);
             }
             catch (Exception ex)
             {
-                logger.LogCritical(ex, "Unable to download m3u file {Url}", filePath);
-
+                logger.LogCritical(ex, "Unable to download m3u file {Url}", fileName);
+                if (await minioClient.ExistsAsync(Constants.CacheBucketName, fileName, cancellationToken) is null)
+                {
+                    throw new RequestFailedException($"Unable to download m3u file {fileName}", ex);
+                }
             }
-            
+
             try
             {
-                return M3UManager.M3UManager.ParseFromFile(filePath);
+                return await minioClient.GetObject(Constants.CacheBucketName, fileName, async reader => M3UManager.M3UManager.ParseFromString(await reader.ReadToEndAsync(cancellationToken)), cancellationToken);
             }
-            catch when (File.Exists(filePath))
+            catch
             {
-                File.Delete(filePath);
+                if (await minioClient.ExistsAsync(Constants.CacheBucketName, fileName, cancellationToken) is {})
+                {
+                    await minioClient.RemoveObjectAsync(new RemoveObjectArgs()
+                        .WithBucket(Constants.CacheBucketName)
+                        .WithObject(fileName), cancellationToken);
+                }
+
                 throw;
             }
         }
+
     }
 }

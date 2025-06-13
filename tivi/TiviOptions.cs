@@ -1,5 +1,6 @@
 using FluentValidation;
-using Microsoft.Extensions.DependencyInjection;
+
+namespace Tivi;
 
 [RegisterOptionsConfiguration("Tivi")]
 public class TiviOptions
@@ -7,13 +8,6 @@ public class TiviOptions
     public string Hostname { get; set; } = null!;
     public string Username { get; set; } = null!;
     public string Password { get; set; } = null!;
-    public string CacheDirectory { get; set => field = EnsureDirectory(value); } = null!;
-
-    public string ResultsDirectory
-    {
-        get;
-        set => field = EnsureDirectory(value);
-    } = null!;
 
     public int IntervalInSeconds { get; set; } = 600;
 
@@ -24,8 +18,6 @@ public class TiviOptions
             RuleFor(z => z.Hostname).NotNull().NotEmpty();
             RuleFor(z => z.Username).NotNull().NotEmpty();
             RuleFor(z => z.Password).NotNull().NotEmpty();
-            RuleFor(z => z.CacheDirectory).NotNull().NotEmpty();
-            RuleFor(z => z.ResultsDirectory).NotNull().NotEmpty();
         }
     }
 
@@ -42,11 +34,4 @@ public class TiviOptions
 
         return path;
     }
-}
-[RegisterOptionsConfiguration("Proxy")]
-public class TiviProxyOptions
-{
-    public string? Hostname { get; set; } = null!;
-    public string? Username { get; set; } = null!;
-    public string? Password { get; set; } = null!;
 }
