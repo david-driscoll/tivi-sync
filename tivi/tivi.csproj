@@ -11,10 +11,11 @@
   </PropertyGroup>
 
   <ItemGroup>
+    <PackageReference Include="BlobHelper" Version="4.1.6" />
     <PackageReference Include="Humanizer.Core" Version="2.14.1" />
     <PackageReference Include="M3U8Reader" Version="1.0.0" />
     <PackageReference Include="M3UManager" Version="1.0.5.9" />
-    <PackageReference Include="Minio" Version="6.0.4" />
+<!--    <PackageReference Include="Minio" Version="6.0.4" />-->
     <PackageReference Include="Rocket.Surgery.Conventions.Configuration.Yaml" Version="14.0.1-beta.54" />
     <PackageReference Include="Rocket.Surgery.Extensions" Version="13.0.0" />
     <PackageReference Include="Rocket.Surgery.Extensions.Logging" Version="13.0.0" />

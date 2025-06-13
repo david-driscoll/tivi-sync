@@ -1,9 +1,7 @@
 using System.Net.Http.Headers;
+using BlobHelper;
 using MediatR;
 using Microsoft.Extensions.Options;
-using Minio;
-using Minio.DataModel;
-using Minio.DataModel.Args;
 using Tivi.Models;
 
 namespace Tivi;
@@ -13,21 +11,23 @@ public static partial class GetXmlTvPlaylist
     public record Request() : IRequest<Tv>;
 
     class Handler(
-        IMinioClient minioClient,
+        [FromKeyedServices(Constants.CacheBucketName)]
+        BlobClient minioClient,
         IOptions<TiviOptions> options,
         ILogger<Handler> logger) : IRequestHandler<Request, Tv>
     {
         public async Task<Tv> Handle(Request request, CancellationToken cancellationToken)
         {
             var fileName = $"{options.Value.Hostname}.xml";
-
+            
             try
             {
-                if (await minioClient.ExistsAsync(Constants.CacheBucketName, fileName, cancellationToken) is
-                        { } stat &&
-                    DateTime.Now.Subtract(TimeSpan.FromHours(1)) < stat.LastModified)
+                if (await minioClient.ExistsAsync(fileName, cancellationToken) is {} stat &&
+                    DateTime.Now.Subtract(TimeSpan.FromHours(1)) < stat.LastUpdateUtc)
                 {
-                    return await minioClient.GetObject(Constants.CacheBucketName, fileName, Tv.Load, cancellationToken);
+                    var s = await minioClient.GetStream(fileName, cancellationToken);
+                    using var reader = new StreamReader(s.Data);
+                    return Tv.Load(await reader.ReadToEndAsync(cancellationToken));
                 }
 
                 using var client = new HttpClient()
@@ -52,36 +52,23 @@ public static partial class GetXmlTvPlaylist
 
                 logger.LogInformation("Downloading xmltv file {FilePath} from {Url}", fileName, url.Uri);
 
-                var stream = await client.GetStreamAsync(url.Uri, cancellationToken);
-                await minioClient.PutObjectAsync(new PutObjectArgs()
-                    .WithBucket(Constants.CacheBucketName)
-                    .WithObject(fileName)
-                    .WithObjectStream(stream), cancellationToken);
+                var stream = await client.GetByteArrayAsync(url.Uri, cancellationToken);
+                await minioClient.Write(fileName, "application/xml", stream, cancellationToken);
+                using var memoryStream = new MemoryStream(stream);
+                using var streamReader = new StreamReader(memoryStream);
                 logger.LogInformation("Downloaded xmltv file {FilePath} from {Url}", fileName, url.Uri);
+                return Tv.Load(streamReader);
             }
             catch (Exception ex)
             {
                 logger.LogCritical(ex, "Unable to download xmltv file {Url}", fileName);
-                if (await minioClient.ExistsAsync(Constants.CacheBucketName, fileName, cancellationToken) is null)
+                if (await minioClient.Exists(fileName, cancellationToken) is false)
                 {
                     throw new RequestFailedException($"Unable to download xmltv file {fileName}", ex);
                 }
-            }
-
-            try
-            {
-                return await minioClient.GetObject(Constants.CacheBucketName, fileName, Tv.Load, cancellationToken);
-            }
-            catch
-            {
-                if (await minioClient.ExistsAsync(Constants.CacheBucketName, fileName, cancellationToken) is { })
-                {
-                    await minioClient.RemoveObjectAsync(new RemoveObjectArgs()
-                        .WithBucket(Constants.CacheBucketName)
-                        .WithObject(fileName), cancellationToken);
-                }
-
-                throw;
+                var stream = await minioClient.GetStream(fileName, cancellationToken);
+                using var reader = new StreamReader(stream.Data);
+                return Tv.Load(await reader.ReadToEndAsync(cancellationToken));
             }
         }
     }

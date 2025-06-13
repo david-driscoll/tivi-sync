@@ -1,13 +1,11 @@
 using System.Net;
 using System.Xml;
+using BlobHelper;
 using Humanizer;
 using M3UManager;
 using M3UManager.Models;
 using MediatR;
 using Microsoft.Extensions.Options;
-using Minio;
-using Minio.DataModel;
-using Minio.DataModel.Args;
 using Rocket.Surgery.Extensions.Encoding;
 using Rocket.Surgery.Extensions.Logging;
 using Tivi.Models;
@@ -20,7 +18,8 @@ public static partial class SyncTivi
     public record Request() : IRequest;
 
     class Handler(
-        IMinioClient minioClient,
+        [FromKeyedServices(Constants.ResultsBucketName)]
+        BlobClient minioClient,
         IMediator mediator,
         IOptions<TiviOptions> options,
         IOptions<TiviProxyOptions> proxyOptions,
@@ -28,22 +27,11 @@ public static partial class SyncTivi
     {
         public async Task Handle(Request request, CancellationToken cancellationToken)
         {
-            if (!await minioClient.BucketExistsAsync(new BucketExistsArgs().WithBucket(Constants.ResultsBucketName),
-                    cancellationToken))
-            {
-                await minioClient.MakeBucketAsync(new MakeBucketArgs().WithBucket(Constants.ResultsBucketName),
-                    cancellationToken);
-            }
-
             var m3uTask = mediator.Send(new GetM3UPlaylist.Request(), cancellationToken);
             var xmltvTask = mediator.Send(new GetXmlTvPlaylist.Request(), cancellationToken);
             var (observer, results) = DownloadIcons(logger);
 
-            await Task.WhenAll(m3uTask, xmltvTask);
             var m3UReader = await m3uTask;
-            var epg = await xmltvTask;
-            epg.Channel.Do(z => z.Icon.Do(d => d.Src = observer(d.Src)));
-            epg.Programme.Do(z => z.Icon.Do(d => d.Src = observer(d.Src)));
 
             var channelsByCategory = m3UReader.Channels
                 //.Where(z => countryCodes.Contains(GetCountryCode(z)))
@@ -87,12 +75,22 @@ public static partial class SyncTivi
             {
                 var icons = await results(cancellationToken);
 
-                await minioClient.ListObjectsEnumAsync(new ListObjectsArgs()
-                        .WithBucket(Constants.ResultsBucketName)
-                        .WithPrefix("icons"), cancellationToken)
+                minioClient.Enumerate("icons")
+                    .ToAsyncEnumerable()
+                    .Expand((result, token) =>
+                    {
+                        if (result.HasMore)
+                        {
+                            return ValueTask.FromResult(minioClient.Enumerate("icons", result.NextContinuationToken, token).ToAsyncEnumerable());
+                        }
+
+                        return ValueTask.FromResult(AsyncEnumerable.Empty<EnumerationResult>());
+                    })
+                    .SelectMany(z => z.Blobs.ToAsyncEnumerable())
                     .Where(z =>
                     {
-                        if (z.LastModifiedDateTime < DateTime.Now.Subtract(TimeSpan.FromDays(1))) return true;
+                        
+                        if (z.LastUpdateUtc < DateTime.Now.Subtract(TimeSpan.FromDays(1))) return true;
                         logger.LogDebug("Skipping picon {IconPath} as it is not older than 1 day", z.Key);
                         return false;
                     })
@@ -100,9 +98,7 @@ public static partial class SyncTivi
                     .Do(z => logger.LogDebug("Removing picon {IconPath}", z))
                     .ForEachAwaitAsync(async path =>
                     {
-                        await minioClient.RemoveObjectAsync(new RemoveObjectArgs()
-                            .WithBucket(Constants.ResultsBucketName)
-                            .WithObject(path.Key), cancellationToken);
+                        await minioClient.Delete(path.Key, cancellationToken);
                     }, cancellationToken);
             }
             // 
@@ -132,9 +128,15 @@ public static partial class SyncTivi
                             .ThenBy(z => z.TvgName)
                     ],
                 };
+                
                 var channelsToCopy = channels
                     .Where(z => !string.IsNullOrWhiteSpace(z.TvgID)).Select(z => z.TvgID)
                     .Distinct();
+                
+                var epg = await xmltvTask;
+                epg.Channel.Do(z => z.Icon.Do(d => d.Src = observer(d.Src)));
+                epg.Programme.Do(z => z.Icon.Do(d => d.Src = observer(d.Src)));
+                
                 var xmlChannels = epg.Channel
                     .Join(channelsToCopy, z => z.Id, z => z, (a, _) => a)
                     .OrderBy(z => z.Id)
@@ -161,24 +163,16 @@ public static partial class SyncTivi
                 await meuWriter.FlushAsync(cancellationToken);
                 m3UStream.Seek(0, SeekOrigin.Begin);
 
+                await minioClient.Write($"{name}.m3u".ToLowerInvariant(), "application/x-mpegURL", m3UStream.ToArray(), cancellationToken);
+
                 using var epgStream = new MemoryStream();
                 await using var epgWriter = new StreamWriter(epgStream, leaveOpen: true);
                 await using var epgXmlWriter = new XmlTextWriter(epgWriter);
                 newepg.Save(epgWriter);
                 await epgWriter.FlushAsync(cancellationToken);
                 epgStream.Seek(0, SeekOrigin.Begin);
-
-                await minioClient.PutObjectAsync(
-                    new PutObjectArgs()
-                        .WithBucket(Constants.ResultsBucketName)
-                        .WithObject($"{name}.m3u".ToLowerInvariant())
-                        .WithObjectStream(m3UStream), cancellationToken);
-
-                await minioClient.PutObjectAsync(
-                    new PutObjectArgs()
-                        .WithBucket(Constants.ResultsBucketName)
-                        .WithObject($"{name}.xml".ToLowerInvariant())
-                        .WithObjectStream(epgStream), cancellationToken);
+                
+                await minioClient.Write($"{name}.xml".ToLowerInvariant(), "application/xml", epgStream.ToArray(), cancellationToken);
             }
         }
 
@@ -383,21 +377,18 @@ public static partial class SyncTivi
 
                 try
                 {
-                    var stream = await client.GetStreamAsync(url, ct);
+                    var stream = await client.GetByteArrayAsync(url, ct);
                     var cacheName = cachePath; // Base3264Encoding.EncodeString(EncodingType.Base32Url, cachePath);
 
-                    if (await minioClient.ExistsAsync(Constants.ResultsBucketName, cacheName, ct) is { } stat &&
-                        DateTime.Now.Subtract(TimeSpan.FromDays(1)) < stat.LastModified)
+                    if (await minioClient.ExistsAsync(cacheName, ct) is { } stat &&
+                        DateTime.Now.Subtract(TimeSpan.FromDays(1)) < stat.LastUpdateUtc)
                     {
                         logger.LogTrace("Icon already exists in cache {Path}", cachePath);
                         return false;
                     }
 
                     logger.LogInformation("Downloading {Url} to {Path}", url, cachePath);
-                    await minioClient.PutObjectAsync(new PutObjectArgs()
-                        .WithBucket(Constants.ResultsBucketName)
-                        .WithObject(cacheName)
-                        .WithObjectStream(stream), ct);
+                   await minioClient.Write(cacheName, "image/png", stream, ct);
                     return true;
                 }
                 catch (HttpRequestException ex) when (ex.StatusCode == HttpStatusCode.NotFound)
