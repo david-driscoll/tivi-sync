@@ -73,6 +73,10 @@ public static class Extensions
 
             return response;
         }
+        catch (BucketNotFoundException)
+        {
+            return null;
+        }
         catch (ObjectNotFoundException)
         {
             return null;

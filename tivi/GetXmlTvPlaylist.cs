@@ -19,13 +19,6 @@ public static partial class GetXmlTvPlaylist
     {
         public async Task<Tv> Handle(Request request, CancellationToken cancellationToken)
         {
-            if (!await minioClient.BucketExistsAsync(new BucketExistsArgs().WithBucket(Constants.CacheBucketName),
-                    cancellationToken))
-            {
-                await minioClient.MakeBucketAsync(new MakeBucketArgs().WithBucket(Constants.CacheBucketName),
-                    cancellationToken);
-            }
-
             var fileName = $"{options.Value.Hostname}.xml";
 
             try
