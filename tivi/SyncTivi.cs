@@ -343,7 +343,7 @@ public static partial class SyncTivi
                 var builder = new UriBuilder()
                 {
                     Host = proxyOptions.Value.Hostname, Port = 443, Scheme = "https",
-                    Path = Path.Combine(["icons", uriBuilder.Host, ..uriBuilder.Path.Split('/')])
+                    Path = Path.Combine(["picons", uriBuilder.Host, ..uriBuilder.Path.Split('/')])
                 };
                 var cachePath = Path.Combine(["icons", uriBuilder.Host, ..uriBuilder.Path.Split('/')]);
                 items.Add((url, cachePath, builder.ToString()));
