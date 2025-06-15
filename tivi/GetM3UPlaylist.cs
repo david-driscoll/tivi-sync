@@ -5,6 +5,7 @@ using BlobHelper;
 using M3UManager.Models;
 using MediatR;
 using Microsoft.Extensions.Options;
+using Rocket.Surgery.Extensions.Logging;
 
 namespace Tivi;
 
@@ -24,7 +25,6 @@ public static partial class GetM3UPlaylist
 
             try
             {
-
                 if (await minioClient.ExistsAsync(fileName, cancellationToken) is {} stat &&
                     DateTime.Now.Subtract(TimeSpan.FromHours(1)) < stat.LastUpdateUtc)
                 {
@@ -52,20 +52,20 @@ public static partial class GetM3UPlaylist
                     Host = options.Value.Hostname,
                 };
 
-                logger.LogInformation("Downloading m3u file {FilePath} from {Url}", fileName, url.Uri);
+                logger.TimeInformation("Downloading m3u file {FilePath} from {Url}", fileName, url.Uri);
 
                 var stream = await client.GetByteArrayAsync(url.Uri, cancellationToken);
-                await minioClient.Write(fileName, "application/x-mpegURL", stream, cancellationToken);
 
-                logger.LogInformation("Downloaded m3u file {FilePath} from {Url}", fileName, url.Uri);
-                return M3UManager.M3UManager.ParseFromString(Encoding.UTF8.GetString(stream));
+                var playlist = M3UManager.M3UManager.ParseFromString(Encoding.UTF8.GetString(stream));
+                await minioClient.Write(fileName, "application/x-mpegURL", stream, cancellationToken);
+                return playlist;
             }
             catch (Exception ex)
             {
-                logger.LogCritical(ex, "Unable to download xmltv file {Url}", fileName);
-                if (await minioClient.Exists(fileName, cancellationToken) is false)
+                logger.LogCritical(ex, "Unable to download m3u file {Url}", fileName);
+                if (!await minioClient.Exists(fileName, cancellationToken))
                 {
-                    throw new RequestFailedException($"Unable to download xmltv file {fileName}", ex);
+                    throw new RequestFailedException($"Unable to download m3u file {fileName}", ex);
                 }
                 var stream = await minioClient.GetStream(fileName, cancellationToken);
                 using var reader = new StreamReader(stream.Data);

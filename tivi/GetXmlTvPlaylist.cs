@@ -2,6 +2,7 @@ using System.Net.Http.Headers;
 using BlobHelper;
 using MediatR;
 using Microsoft.Extensions.Options;
+using Rocket.Surgery.Extensions.Logging;
 using Tivi.Models;
 
 namespace Tivi;
@@ -49,20 +50,20 @@ public static partial class GetXmlTvPlaylist
                     Query = $"username={options.Value.Username}&password={options.Value.Password}",
                     Host = options.Value.Hostname,
                 };
-
-                logger.LogInformation("Downloading xmltv file {FilePath} from {Url}", fileName, url.Uri);
+                
+                using var _ = logger.TimeInformation("Downloading xmltv file {FilePath} from {Url}", fileName, url.Uri);
 
                 var stream = await client.GetByteArrayAsync(url.Uri, cancellationToken);
-                await minioClient.Write(fileName, "application/xml", stream, cancellationToken);
                 using var memoryStream = new MemoryStream(stream);
                 using var streamReader = new StreamReader(memoryStream);
-                logger.LogInformation("Downloaded xmltv file {FilePath} from {Url}", fileName, url.Uri);
-                return Tv.Load(streamReader);
+                var tv = Tv.Load(streamReader);
+                await minioClient.Write(fileName, "text/plain", stream, cancellationToken);
+                return tv;
             }
             catch (Exception ex)
             {
                 logger.LogCritical(ex, "Unable to download xmltv file {Url}", fileName);
-                if (await minioClient.Exists(fileName, cancellationToken) is false)
+                if (!await minioClient.Exists(fileName, cancellationToken))
                 {
                     throw new RequestFailedException($"Unable to download xmltv file {fileName}", ex);
                 }
