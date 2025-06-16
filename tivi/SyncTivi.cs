@@ -27,6 +27,7 @@ public static partial class SyncTivi
     {
         public async Task Handle(Request request, CancellationToken cancellationToken)
         {
+            using var _ = logger.TimeInformation("Syncing Tivi playlists");
             var m3uTask = mediator.Send(new GetM3UPlaylist.Request(), cancellationToken);
             var xmltvTask = mediator.Send(new GetXmlTvPlaylist.Request(), cancellationToken);
             var (observer, results) = DownloadIcons(logger);
