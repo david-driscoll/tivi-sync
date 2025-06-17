@@ -37,12 +37,23 @@ public static partial class SyncTivi
             var channelsByCategory = m3UReader.Channels
                 //.Where(z => countryCodes.Contains(GetCountryCode(z)))
                 .GroupBy(MatchCategory)
-                .Where(z => z.Key is not (RecordCategory.Dropped or RecordCategory.Skipped or RecordCategory.PayPerView
-                    or RecordCategory.Australia or RecordCategory.NewZealand))
-                .ToDictionary(z => z.Key, z => z.ToList());
+                .Where(z =>
+                    z.Key is not
+                        (
+                        RecordCategory.Dropped or
+                        RecordCategory.Skipped or
+                        RecordCategory.MovieAndSeries or
+                        RecordCategory.PayPerView or
+                        RecordCategory.OnDemand or
+                        RecordCategory.Twenty47 or
+                        RecordCategory.FreeTv
+                        )
+                )
+                .ToDictionary(z => z.Key, z => z.ToHashSet());
             var locals = channelsByCategory[RecordCategory.Local];
             var us = channelsByCategory[RecordCategory.UnitedStates];
 
+            us.RemoveWhere(locals.Contains);
 
             foreach (var local in locals.AsEnumerable().Reverse())
             {
@@ -62,50 +73,45 @@ public static partial class SyncTivi
             foreach (var (category, channels) in channelsByCategory)
             {
                 logger.LogInformation("Saving {Category} with {Count} channels", category, channels.Count);
-                await SaveModifiedPlaylist(channels, category.ToString());
+                await SaveModifiedPlaylist(category.ToString(), [category]);
             }
 
-            // var filteredChannels = m3UReader.Channels
-            //     .Where(z => MatchCategory(z) is not (RecordCategory.Dropped or RecordCategory.Skipped
-            //         or RecordCategory.PayPerView or RecordCategory.Australia or RecordCategory.NewZealand))
-            //     .ToArray();
-            // logger.LogInformation("Saving combined with {Count} channels", filteredChannels.Count());
-            // await SaveModifiedPlaylist(filteredChannels, "combined");
+            await SaveModifiedPlaylist("ondemand",
+                [RecordCategory.OnDemand, RecordCategory.Twenty47, RecordCategory.FreeTv]);
+            await SaveModifiedPlaylist("paypreview", [RecordCategory.PayPerView]);
+            await SaveModifiedPlaylist(nameof(RecordCategory.MovieAndSeries), [RecordCategory.MovieAndSeries]);
 
             using (logger.TimeInformation("Downloading picons"))
             {
                 var icons = await results(cancellationToken);
 
-                minioClient.Enumerate("picons")
+                await minioClient.Enumerate("picons", token: cancellationToken)
                     .ToAsyncEnumerable()
-                    .Expand((result, token) =>
-                    {
-                        if (result.HasMore)
-                        {
-                            return ValueTask.FromResult(minioClient.Enumerate("picons", result.NextContinuationToken, token).ToAsyncEnumerable());
-                        }
-
-                        return ValueTask.FromResult(AsyncEnumerable.Empty<EnumerationResult>());
-                    })
+                    .Expand((result, token) => ValueTask.FromResult(result.HasMore
+                        ? minioClient.Enumerate("picons", result.NextContinuationToken, token).ToAsyncEnumerable()
+                        : AsyncEnumerable.Empty<EnumerationResult>()))
                     .SelectMany(z => z.Blobs.ToAsyncEnumerable())
                     .Where(z =>
                     {
-                        
                         if (z.LastUpdateUtc < DateTime.Now.Subtract(TimeSpan.FromDays(1))) return true;
                         logger.LogDebug("Skipping picon {IconPath} as it is not older than 1 day", z.Key);
                         return false;
                     })
                     .Where(z => !icons.Contains(z.Key))
                     .Do(z => logger.LogDebug("Removing picon {IconPath}", z))
-                    .ForEachAwaitAsync(async path =>
-                    {
-                        await minioClient.Delete(path.Key, cancellationToken);
-                    }, cancellationToken);
+                    .ForEachAwaitAsync(async path => { await minioClient.Delete(path.Key, cancellationToken); },
+                        cancellationToken);
             }
             // 
 
-            async Task SaveModifiedPlaylist(IEnumerable<Channel> channels, string name)
+            async Task SaveModifiedPlaylist(string name, HashSet<RecordCategory> categories)
             {
+                var channels = channelsByCategory
+                    .Where(z => categories.Contains(z.Key))
+                    .SelectMany(z => z.Value)
+                    .OrderBy(z => z.GroupTitle)
+                    .ThenBy(z => z.TvgName)
+                    .ToArray();
                 var newm3U = new M3U()
                 {
                     HasEndList = m3UReader.HasEndList,
@@ -116,40 +122,38 @@ public static partial class SyncTivi
                     Channels =
                     [
                         ..channels.Select(x => new Channel()
-                            {
-                                Duration = x.Duration,
-                                GroupTitle = x.GroupTitle,
-                                Logo = observer(x.Logo),
-                                MediaUrl = ReplaceUri(x.MediaUrl),
-                                Title = x.Title,
-                                TvgID = x.TvgID,
-                                TvgName = x.TvgName,
-                            })
-                            .OrderBy(z => z.GroupTitle)
-                            .ThenBy(z => z.TvgName)
+                        {
+                            Duration = x.Duration,
+                            GroupTitle = x.GroupTitle,
+                            Logo = observer(x.Logo),
+                            MediaUrl = ReplaceUri(x.MediaUrl),
+                            Title = x.Title,
+                            TvgID = x.TvgID,
+                            TvgName = x.TvgName,
+                        })
                     ],
                 };
-                
+
                 var channelsToCopy = channels
                     .Where(z => !string.IsNullOrWhiteSpace(z.TvgID)).Select(z => z.TvgID)
                     .Distinct();
-                
+
                 var epg = await xmltvTask;
                 epg.Channel.Do(z => z.Icon.Do(d => d.Src = observer(d.Src)));
                 epg.Programme.Do(z => z.Icon.Do(d => d.Src = observer(d.Src)));
-                
+
                 var xmlChannels = epg.Channel
                     .Join(channelsToCopy, z => z.Id, z => z, (a, _) => a)
                     .OrderBy(z => z.Id)
                     .ToList();
-                var newepg = new Tv()
+                var newepg = new Tv
                 {
                     Date = epg.Date,
-                    Generatorinfoname = epg.Generatorinfoname,
-                    Generatorinfourl = epg.Generatorinfourl,
-                    Sourcedataurl = null,
-                    Sourceinfoname = name.Humanize(),
-                    Sourceinfourl = null,
+                    Generatorinfoname = name.Humanize(),
+                    Generatorinfourl = $"{epg.Generatorinfourl}/{name}.xml",
+                    Sourcedataurl = epg.Sourcedataurl,
+                    Sourceinfoname = epg.Generatorinfoname,
+                    Sourceinfourl = epg.Generatorinfourl,
                     Programme =
                     [
                         .. xmlChannels
@@ -164,7 +168,8 @@ public static partial class SyncTivi
                 await meuWriter.FlushAsync(cancellationToken);
                 m3UStream.Seek(0, SeekOrigin.Begin);
 
-                await minioClient.Write($"{name}.m3u".ToLowerInvariant(), "application/x-mpegURL", m3UStream.ToArray(), cancellationToken);
+                await minioClient.Write($"{name}.m3u".ToLowerInvariant(), "application/x-mpegURL", m3UStream.ToArray(),
+                    cancellationToken);
 
                 using var epgStream = new MemoryStream();
                 await using var epgWriter = new StreamWriter(epgStream, leaveOpen: true);
@@ -172,8 +177,9 @@ public static partial class SyncTivi
                 newepg.Save(epgWriter);
                 await epgWriter.FlushAsync(cancellationToken);
                 epgStream.Seek(0, SeekOrigin.Begin);
-                
-                await minioClient.Write($"{name}.xml".ToLowerInvariant(), "application/xml", epgStream.ToArray(), cancellationToken);
+
+                await minioClient.Write($"{name}.xml".ToLowerInvariant(), "application/xml", epgStream.ToArray(),
+                    cancellationToken);
             }
         }
 
@@ -199,6 +205,7 @@ public static partial class SyncTivi
 
         RecordCategory MatchCategory(M3UManager.Models.Channel channel)
         {
+            var isMovieOrSeries = IsMovieAndSeries(channel.MediaUrl);
             var groupTags =
                 channel.GroupTitle.Split(['┃'], StringSplitOptions.RemoveEmptyEntries | StringSplitOptions.TrimEntries);
             if (groupTags is [_, var mid, ..] &&
@@ -226,29 +233,13 @@ public static partial class SyncTivi
                 return g;
             }
 
-            if (g is not (RecordCategory.Canada or RecordCategory.UnitedStates or RecordCategory.UnitedKingdom
-                or RecordCategory.NewZealand or RecordCategory.Australia))
-            {
-                return g;
-            }
-
-            // var mediaExtension = Path.GetExtension(channel.MediaUrl);
-            // if (mediaExtension is ".mp4" or ".mkv" or ".avi")
+            // if (g is not (RecordCategory.Canada or RecordCategory.UnitedStates or RecordCategory.UnitedKingdom
+            //     or RecordCategory.NewZealand or RecordCategory.Australia))
             // {
-            //     return RecordCategory.MovieAndSeries;
-            // }
-            //
-            // var mediaUrl = new Uri(channel.MediaUrl);
-            // if (
-            //     mediaUrl.AbsolutePath.StartsWith("/movie", StringComparison.OrdinalIgnoreCase)
-            //     || mediaUrl.AbsolutePath.StartsWith("/series", StringComparison.OrdinalIgnoreCase)
-            //     || mediaUrl.AbsolutePath.Contains("/MOVIES & SERIES/", StringComparison.OrdinalIgnoreCase)
-            // )
-            // {
-            //     return RecordCategory.MovieAndSeries;
+            //     return isMovieOrSeries ? RecordCategory.OnDemand : g;
             // }
 
-            return g;
+            return isMovieOrSeries ? RecordCategory.OnDemand : g;
         }
 
         static bool IsMovieAndSeries(string url)
@@ -389,7 +380,7 @@ public static partial class SyncTivi
                     }
 
                     logger.LogInformation("Downloading {Url} to {Path}", url, cachePath);
-                   await minioClient.Write(cacheName, "image/png", stream, ct);
+                    await minioClient.Write(cacheName, "image/png", stream, ct);
                     return true;
                 }
                 catch (HttpRequestException ex) when (ex.StatusCode == HttpStatusCode.NotFound)
