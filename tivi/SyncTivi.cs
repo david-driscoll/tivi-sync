@@ -37,6 +37,7 @@ public static partial class SyncTivi
             var channelsByCategory = m3UReader.Channels
                 //.Where(z => countryCodes.Contains(GetCountryCode(z)))
                 .GroupBy(MatchCategory)
+                .Where(z => z.Key is not (RecordCategory.Dropped or RecordCategory.Skipped))
                 .ToDictionary(z => z.Key, z => z.ToHashSet());
             var locals = channelsByCategory[RecordCategory.Local];
             var us = channelsByCategory[RecordCategory.UnitedStates];
