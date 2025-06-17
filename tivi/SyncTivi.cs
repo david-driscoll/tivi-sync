@@ -76,13 +76,13 @@ public static partial class SyncTivi
             {
                 var icons = await results(cancellationToken);
 
-                minioClient.Enumerate("icons")
+                minioClient.Enumerate("picons")
                     .ToAsyncEnumerable()
                     .Expand((result, token) =>
                     {
                         if (result.HasMore)
                         {
-                            return ValueTask.FromResult(minioClient.Enumerate("icons", result.NextContinuationToken, token).ToAsyncEnumerable());
+                            return ValueTask.FromResult(minioClient.Enumerate("picons", result.NextContinuationToken, token).ToAsyncEnumerable());
                         }
 
                         return ValueTask.FromResult(AsyncEnumerable.Empty<EnumerationResult>());
@@ -346,7 +346,7 @@ public static partial class SyncTivi
                     Host = proxyOptions.Value.Hostname, Port = 443, Scheme = "https",
                     Path = Path.Combine(["picons", uriBuilder.Host, ..uriBuilder.Path.Split('/')])
                 };
-                var cachePath = Path.Combine(["icons", uriBuilder.Host, ..uriBuilder.Path.Split('/')]);
+                var cachePath = Path.Combine(["picons", uriBuilder.Host, ..uriBuilder.Path.Split('/')]);
                 items.Add((url, cachePath, builder.ToString()));
 
                 return builder.ToString();
