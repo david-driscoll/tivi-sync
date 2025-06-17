@@ -37,18 +37,6 @@ public static partial class SyncTivi
             var channelsByCategory = m3UReader.Channels
                 //.Where(z => countryCodes.Contains(GetCountryCode(z)))
                 .GroupBy(MatchCategory)
-                .Where(z =>
-                    z.Key is not
-                        (
-                        RecordCategory.Dropped or
-                        RecordCategory.Skipped or
-                        RecordCategory.MovieAndSeries or
-                        RecordCategory.PayPerView or
-                        RecordCategory.OnDemand or
-                        RecordCategory.Twenty47 or
-                        RecordCategory.FreeTv
-                        )
-                )
                 .ToDictionary(z => z.Key, z => z.ToHashSet());
             var locals = channelsByCategory[RecordCategory.Local];
             var us = channelsByCategory[RecordCategory.UnitedStates];
@@ -70,7 +58,17 @@ public static partial class SyncTivi
                 });
             }
 
-            foreach (var (category, channels) in channelsByCategory)
+            foreach (var (category, channels) in channelsByCategory
+                         .Where(z =>
+                             z.Key is not
+                                 (
+                                 RecordCategory.MovieAndSeries or
+                                 RecordCategory.PayPerView or
+                                 RecordCategory.OnDemand or
+                                 RecordCategory.Twenty47 or
+                                 RecordCategory.FreeTv
+                                 )
+                         ))
             {
                 logger.LogInformation("Saving {Category} with {Count} channels", category, channels.Count);
                 await SaveModifiedPlaylist(category.ToString(), [category]);
@@ -134,16 +132,12 @@ public static partial class SyncTivi
                     ],
                 };
 
-                var channelsToCopy = channels
-                    .Where(z => !string.IsNullOrWhiteSpace(z.TvgID)).Select(z => z.TvgID)
-                    .Distinct();
-
                 var epg = await xmltvTask;
                 epg.Channel.Do(z => z.Icon.Do(d => d.Src = observer(d.Src)));
                 epg.Programme.Do(z => z.Icon.Do(d => d.Src = observer(d.Src)));
 
                 var xmlChannels = epg.Channel
-                    .Join(channelsToCopy, z => z.Id, z => z, (a, _) => a)
+                    .Join(channels, z => z.Id, z => z.TvgID, (a, _) => a)
                     .OrderBy(z => z.Id)
                     .ToList();
                 var newepg = new Tv
